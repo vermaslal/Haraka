@@ -1,56 +1,60 @@
 'use strict';
 // Log class
 
-var config    = require('./config');
+var config = require('./config');
 var plugins;
 var connection;
 var outbound;
 var constants = require('./constants');
-var util      = require('util');
-var tty       = require('tty');
+var util = require('util');
+var tty = require('tty');
 
 var logger = exports;
 
 logger.levels = {
-    DATA:     9,
+    DATA: 9,
     PROTOCOL: 8,
-    DEBUG:    7,
-    INFO:     6,
-    NOTICE:   5,
-    WARN:     4,
-    ERROR:    3,
-    CRIT:     2,
-    ALERT:    1,
-    EMERG:    0,
+    DEBUG: 7,
+    INFO: 6,
+    NOTICE: 5,
+    WARN: 4,
+    ERROR: 3,
+    CRIT: 2,
+    ALERT: 1,
+    EMERG: 0,
 };
 
 for (var level in logger.levels) {
     logger['LOG' + level] = logger.levels[level];
 }
 
-logger.loglevel     = logger.LOGWARN;
+logger.loglevel = logger.LOGWARN;
 logger.deferred_logs = [];
 
 logger.colors = {
-    "DATA" : "green",
-    "PROTOCOL" : "green",
-    "DEBUG" : "grey",
-    "INFO" : "cyan",
-    "NOTICE" : "blue",
-    "WARN" : "red",
-    "ERROR" : "red",
-    "CRIT" : "red",
-    "ALERT" : "red",
-    "EMERG" : "red",
+    "DATA": "green",
+    "PROTOCOL": "green",
+    "DEBUG": "grey",
+    "INFO": "cyan",
+    "NOTICE": "blue",
+    "WARN": "red",
+    "ERROR": "red",
+    "CRIT": "red",
+    "ALERT": "red",
+    "EMERG": "red",
 };
 
 var stdout_is_tty = tty.isatty(process.stdout.fd);
 
 logger.colorize = function (color, str) {
-    if (!util.inspect.colors) { return str; }  // node util before Nov 2013
-    if (!util.inspect.colors[color]) { return str; }  // unknown color
+    if (!util.inspect.colors) {
+        return str;
+    }  // node util before Nov 2013
+    if (!util.inspect.colors[color]) {
+        return str;
+    }  // unknown color
     return '\u001b[' + util.inspect.colors[color][0] + 'm' + str +
-           '\u001b[' + util.inspect.colors[color][1] + 'm';
+            '\u001b[' + util.inspect.colors[color][1] + 'm';
 };
 
 var loglevel = logger.LOGWARN;
@@ -61,11 +65,12 @@ logger.dump_logs = function (exit) {
     while (logger.deferred_logs.length > 0) {
         var log_item = logger.deferred_logs.shift();
         var color = logger.colors[log_item.level];
+        var strDate = formatDate(new Date);
         if (color && stdout_is_tty) {
-            console.log(logger.colorize(color,log_item.data));
+            console.log(logger.colorize(color, strDate, log_item.data));
         }
         else {
-            console.log(log_item.data);
+            console.log(strDate, log_item.data);
         }
     }
     if (exit) {
@@ -79,14 +84,12 @@ logger.log = function (level, data) {
         data = data.replace(/\n/g, '\\n\n');
     }
     data = data.replace(/\r/g, '\\r')
-               .replace(/\n$/, '');
+            .replace(/\n$/, '');
 
-    var item = { 'level' : level, 'data'  : data };
+    var item = {'level': level, 'data': data};
 
     // buffer until plugins are loaded
-    if (!plugins || (Array.isArray(plugins.plugin_list) &&
-                     !plugins.plugin_list.length))
-    {
+    if (!plugins || !plugins.plugin_list) {
         logger.deferred_logs.push(item);
         return true;
     }
@@ -97,21 +100,24 @@ logger.log = function (level, data) {
         plugins.run_hooks('log', logger, log_item);
     }
 
-    plugins.run_hooks('log', logger, item );
+    plugins.run_hooks('log', logger, item);
     return true;
 };
 
 logger.log_respond = function (retval, msg, data) {
     // any other return code is irrelevant
-    if (retval !== constants.cont) { return false; }
+    if (retval !== constants.cont) {
+        return false;
+    }
 
     var color = logger.colors[data.level];
+    var strDate = formatDate(new Date);
     if (color && stdout_is_tty) {
-        console.log(logger.colorize(color,data.data));
+        console.log(logger.colorize(color, strDate, data.data));
         return true;
     }
 
-    console.log(data.data);
+    console.log(strDate, data.data);
     return true;
 };
 
@@ -136,7 +142,9 @@ logger._init_loglevel = function () {
 };
 
 logger.would_log = function (level) {
-    if (logger.loglevel < level) { return false; }
+    if (logger.loglevel < level) {
+        return false;
+    }
     return true;
 };
 
@@ -149,13 +157,13 @@ logger._init_timestamps = function () {
     });
 
     if (_timestamps) {
-        console.log = function() {
+        console.log = function () {
             var new_arguments = [new Date().toISOString()];
             for (var key in arguments) {
                 new_arguments.push(arguments[key]);
             }
             original_console_log.apply(console, new_arguments);
-        };
+        }
     }
     else {
         console.log = original_console_log;
@@ -166,15 +174,17 @@ logger._init_loglevel();
 logger._init_timestamps();
 
 logger.log_if_level = function (level, key, plugin) {
-    return function() {
-        if (logger.loglevel < logger[key]) { return; }
+    return function () {
+        if (logger.loglevel < logger[key]) {
+            return;
+        }
         var levelstr = '[' + level + ']';
         var str = '';
         var uuidstr = '[-]';
         var pluginstr = '[' + (plugin || 'core') + ']';
-        for (var i=0; i < arguments.length; i++) {
+        for (var i = 0; i < arguments.length; i++) {
             var data = arguments[i];
-            if (typeof(data) !== 'object') {
+            if (typeof (data) !== 'object') {
                 str += data;
                 continue;
             }
@@ -188,9 +198,6 @@ logger.log_if_level = function (level, key, plugin) {
                 uuidstr += ']';
             }
             else if (data instanceof plugins.Plugin) {
-                pluginstr = '[' + data.name + ']';
-            }
-            else if (typeof data === 'object' && data.name) {
                 pluginstr = '[' + data.name + ']';
             }
             else if (data instanceof outbound.HMailItem) {
@@ -209,14 +216,30 @@ logger.log_if_level = function (level, key, plugin) {
 };
 
 logger.add_log_methods = function (object, plugin) {
-    if (!object) return;
-    if (typeof(object) !== 'object') return;
+    if (!object)
+        return;
+    if (typeof (object) !== 'object')
+        return;
     for (var level in logger.levels) {
         var fname = 'log' + level.toLowerCase();
-        if (object[fname]) continue;  // already added
-        object[fname] = logger.log_if_level(level, 'LOG'+level, plugin);
+        if (object[fname])
+            continue;  // already added
+        object[fname] = logger.log_if_level(level, 'LOG' + level, plugin);
     }
 };
+
+function formatDate(d) {
+    function pad(n) {
+        return n < 10 ? '0' + n : n;
+    }
+    return d.getFullYear() + '-' +
+            pad(d.getMonth() + 1) + '-' +
+            pad(d.getDate()) + ' ' +
+            pad(d.getHours()) + ':' +
+            pad(d.getMinutes()) + ':' +
+            pad(d.getSeconds());
+}
+
 
 logger.add_log_methods(logger);
 
